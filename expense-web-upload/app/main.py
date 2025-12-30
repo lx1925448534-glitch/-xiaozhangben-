@@ -1,70 +1,71 @@
 from __future__ import annotations
 
 from datetime import datetime, date
-from typing import Optional, Any, Dict
+from typing import Optional
 
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-# ✅ 关键：在 Render 上必须用包导入（别再用 from db import ...）
 from app.db import SessionLocal, engine
+from app.db import Base
 from app import models, crud
 
 app = FastAPI()
 
-# Create tables (safe)
-models.Base.metadata.create_all(bind=engine)
+# Create tables on startup (safe)
+Base.metadata.create_all(bind=engine)
 
-# Static + templates（保持你现有目录结构不变）
+# static & templates
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
 
-def _today_yyyy_mm() -> str:
-    t = date.today()
-    return f"{t.year:04d}-{t.month:02d}"
-
-
 def _parse_date_any(s: str) -> date:
-    """
-    Accept:
-      - YYYY-MM-DD
-      - YYYY/MM/DD
-    """
     ss = (s or "").strip().replace("/", "-")
     return datetime.strptime(ss, "%Y-%m-%d").date()
+
+
+@app.get("/health")
+def health():
+    return JSONResponse({"ok": True})
 
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     db = SessionLocal()
     try:
-        # ✅ 这里不会再炸：crud.py 里保证有 list_records()
-        records = crud.list_records(db)
+        records = crud.list_records(db, limit=200)
 
-        # 主页顶部总览（本月）
-        totals = crud.month_totals(db, _today_yyyy_mm())
+        # 首页顶部：本月统计（用 DB 现有数据计算，简单稳）
+        today = date.today()
+        month_start = date(today.year, today.month, 1)
 
-        # 兼容不同模板写法：既给 totals，也给拆开的字段
+        exp = 0.0
+        inc = 0.0
+        for r in records:
+            if month_start <= r.date <= today:
+                if r.type == "expense":
+                    exp += r.amount
+                elif r.type == "income":
+                    inc += r.amount
+
         return templates.TemplateResponse(
             "index.html",
             {
                 "request": request,
                 "records": records,
-                "totals": totals,
-                "total_expense": totals["total_expense"],
-                "total_income": totals["total_income"],
-                "balance": totals["balance"],
-                "default_date": date.today().strftime("%Y/%m/%d"),
+                "total_expense": f"{exp:.2f}",
+                "total_income": f"{inc:.2f}",
+                "balance": f"{(inc - exp):.2f}",
             },
         )
     finally:
         db.close()
 
 
-# ✅ 防止你手动打开 /add 时出现 422/Field required
+# 防止 GET /add 被打开时报错（表单只走 POST）
 @app.get("/add")
 def add_get_redirect():
     return RedirectResponse(url="/", status_code=302)
@@ -72,31 +73,27 @@ def add_get_redirect():
 
 @app.post("/add")
 def add_post(
-    # ✅ 用 Form(...) 接收网页表单提交，彻底解决 Field required
-    r_type: str = Form(...),        # expense / income（或 支出/收入 也行）
+    # ✅ 必须对齐 index.html：name="type/amount/category/date/note"
+    type: str = Form(...),
     amount: float = Form(...),
     category: str = Form(...),
-    date_str: str = Form(...),      # 你现在表单里就是 date_str（截图报错就是缺它）
+    date: str = Form(...),
     note: str = Form(""),
 ):
+    t = (type or "").strip()
+    if t not in ("expense", "income"):
+        t = "expense"
+
+    d = _parse_date_any(date)
+
     db = SessionLocal()
     try:
-        # 兼容你前端可能传 支出/收入
-        rt = (r_type or "").strip()
-        if rt in ("支出", "expense"):
-            rt = "expense"
-        elif rt in ("收入", "income"):
-            rt = "income"
-
-        d = _parse_date_any(date_str)
-
         crud.create_record(
             db=db,
-            r_type=rt,
+            type_=t,
             amount=float(amount),
             category=(category or "").strip(),
-            date_value=d,
-            date_str=(date_str or "").strip(),
+            d=d,
             note=(note or "").strip(),
         )
     finally:
@@ -105,39 +102,42 @@ def add_post(
     return RedirectResponse(url="/", status_code=303)
 
 
-@app.get("/stats", response_class=HTMLResponse)
-def stats(request: Request, month: Optional[str] = None):
-    """
-    月统计模式：
-      /stats?month=YYYY-MM
-    不传 month 默认本月
-    """
-    m = (month or "").strip()[:7] or _today_yyyy_mm()
-
+# ✅ 对齐 index.html 删除按钮 action="/delete/{{ r.id }}"
+@app.post("/delete/{record_id}")
+def delete_post(record_id: int):
     db = SessionLocal()
     try:
-        totals = crud.month_totals(db, m)
-        breakdown_expense = crud.month_category_breakdown(db, m, "expense")
-        breakdown_income = crud.month_category_breakdown(db, m, "income")
+        crud.delete_record(db, record_id)
+    finally:
+        db.close()
+    return RedirectResponse(url="/", status_code=303)
+
+
+@app.get("/stats", response_class=HTMLResponse)
+def stats(
+    request: Request,
+    from_: Optional[str] = Query(default=None, alias="from"),
+    to: Optional[str] = Query(default=None, alias="to"),
+):
+    db = SessionLocal()
+    try:
+        start_d = _parse_date_any(from_) if from_ else None
+        end_d = _parse_date_any(to) if to else None
+
+        summary = crud.range_summary(db, start_d, end_d)
+        lines = crud.week_lines(db, start_d, end_d)
 
         return templates.TemplateResponse(
             "stats.html",
             {
                 "request": request,
-                "month": m,
-                "totals": totals,
-                "total_expense": totals["total_expense"],
-                "total_income": totals["total_income"],
-                "balance": totals["balance"],
-                "breakdown_expense": breakdown_expense,
-                "breakdown_income": breakdown_income,
+                "date_from": from_ or "",
+                "date_to": to or "",
+                "range_expense": f"{summary['range_expense']:.2f}",
+                "range_income": f"{summary['range_income']:.2f}",
+                "range_balance": f"{summary['range_balance']:.2f}",
+                "week_lines": lines,
             },
         )
     finally:
         db.close()
-
-
-# （可选）健康检查，方便你验证 Render 是否真启动
-@app.get("/health")
-def health():
-    return JSONResponse({"ok": True})
