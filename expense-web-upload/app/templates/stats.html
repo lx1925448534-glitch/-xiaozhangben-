@@ -2,222 +2,89 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <title>统计 - 小账本</title>
-
-  <!-- PWA: manifest + iOS 支持 -->
-  <link rel="manifest" href="/static/manifest.webmanifest">
-  <meta name="theme-color" content="#f6f8fb">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="小账本">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
-
-  <style>
-    :root{
-      --bg: #f6f8fb;
-      --card: rgba(255,255,255,.85);
-      --border: rgba(15,23,42,.08);
-      --text: #0f172a;
-      --muted: rgba(15,23,42,.55);
-      --primary: #2563eb;
-      --shadow: 0 14px 40px rgba(15,23,42,.08);
-      --radius: 16px;
-    }
-    *{ box-sizing: border-box; }
-    body{
-      margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC","Microsoft YaHei", Arial;
-      color: var(--text);
-      background: radial-gradient(1200px 600px at 20% 0%, rgba(37,99,235,.10), transparent 60%),
-                  radial-gradient(1000px 500px at 80% 10%, rgba(16,185,129,.10), transparent 60%),
-                  var(--bg);
-      min-height: 100vh;
-    }
-
-    .wrap{ max-width: 1100px; margin: 28px auto 60px; padding: 0 16px; }
-
-    .topbar{
-      display:flex; align-items:center; justify-content:space-between; gap:12px;
-      padding: 16px 18px; background: var(--card);
-      border: 1px solid var(--border); border-radius: var(--radius);
-      box-shadow: var(--shadow); backdrop-filter: blur(10px);
-    }
-    .brand{ display:flex; align-items:center; gap:12px; }
-    .logo{
-      width: 40px; height: 40px; border-radius: 12px;
-      background: linear-gradient(135deg, rgba(37,99,235,.18), rgba(37,99,235,.06));
-      border: 1px solid rgba(37,99,235,.18);
-      display:grid; place-items:center;
-    }
-    .brand h1{ font-size:16px; margin:0; line-height:1.2; }
-    .brand p{ margin:2px 0 0; font-size:12px; color: var(--muted); }
-
-    .btn{
-      display:inline-flex; align-items:center; justify-content:center; gap:8px;
-      padding: 10px 14px; border-radius: 12px;
-      border: 1px solid var(--border);
-      background: white; color: var(--text);
-      text-decoration:none; font-size: 14px;
-      transition:.15s ease; user-select:none;
-    }
-    .btn:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(15,23,42,.08); }
-
-    .card{
-      margin-top: 18px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(10px);
-      padding: 16px 18px 18px;
-    }
-
-    .row{ display:flex; gap:12px; flex-wrap: wrap; align-items:end; }
-    .field{ min-width: 220px; flex: 1; }
-    label{ display:block; font-size:12px; color: var(--muted); margin-bottom:6px; }
-
-    input{
-      width: 100%;
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      background: white;
-      outline: none;
-      font-size: 14px;
-    }
-
-    .hint{ font-size:12px; color: var(--muted); margin-top: 10px; }
-
-    .kpis{
-      display:grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 12px;
-      margin-top: 16px;
-    }
-    @media (max-width: 680px){
-      .kpis{ grid-template-columns: 1fr; }
-    }
-    .pill{
-      border-radius: 14px;
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,.85);
-      padding: 12px 14px;
-    }
-    .pill .t{ font-size:12px; color: var(--muted); margin-bottom:6px; }
-    .pill .v{ font-size:18px; font-weight:700; letter-spacing:.2px; }
-
-    .list{
-      margin-top: 16px;
-      border-top: 1px solid rgba(15,23,42,.06);
-      padding-top: 14px;
-      color: rgba(15,23,42,.75);
-      font-size: 13px;
-      line-height: 1.65;
-    }
-  </style>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>统计</title>
+  <link rel="stylesheet" href="/static/style.css" />
 </head>
-
 <body>
-  <div class="wrap">
-    <!-- 顶部栏 -->
-    <div class="topbar">
-      <div class="brand">
-        <div class="logo" aria-hidden="true">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <path d="M7 4h10a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" stroke="#2563eb" stroke-width="1.8"/>
-            <path d="M8 8h8M8 12h8M8 16h6" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round"/>
-            <path d="M5 7h2" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <div>
-          <h1>小账本</h1>
-          <p>统计</p>
-        </div>
-      </div>
-
-      <a class="btn" href="/" title="返回首页">返回</a>
-    </div>
-
-    <div class="card">
-      <form method="get" action="/stats" id="filterForm">
-        <div class="row">
-          <div class="field">
-            <label for="from">开始日期</label>
-            <input id="from" name="from" type="date" value="{{ date_from if date_from else '' }}" />
-          </div>
-          <div class="field">
-            <label for="to">结束日期</label>
-            <input id="to" name="to" type="date" value="{{ date_to if date_to else '' }}" />
-          </div>
-          <div style="min-width: 140px;">
-            <button class="btn" type="submit" style="width:100%; border-color: rgba(37,99,235,.25);">查看</button>
-          </div>
-        </div>
-
-        <div class="hint">
-          说明：这里用“日期范围”来做统计，手机和电脑都好用。你后面做“账号互通”，这里也会自动按当前账号过滤数据。
-        </div>
-
-        <div class="kpis">
-          <div class="pill">
-            <div class="t">区间总支出</div>
-            <div class="v">¥ {{ range_expense if range_expense is not none else "0.00" }}</div>
-          </div>
-          <div class="pill">
-            <div class="t">区间总收入</div>
-            <div class="v">¥ {{ range_income if range_income is not none else "0.00" }}</div>
-          </div>
-          <div class="pill">
-            <div class="t">区间结余</div>
-            <div class="v">¥ {{ range_balance if range_balance is not none else "0.00" }}</div>
-          </div>
-        </div>
-
-        {% if week_lines and week_lines|length > 0 %}
-          <div class="list">
-            <strong>按周汇总（参考）：</strong><br/>
-            {% for line in week_lines %}
-              • {{ line }}<br/>
-            {% endfor %}
-          </div>
-        {% endif %}
-      </form>
+  <div class="topbar">
+    <div class="brand">小账本</div>
+    <div class="nav">
+      <a href="/">首页</a>
+      <a href="/stats" class="active">统计</a>
+      <a href="/logout">退出</a>
     </div>
   </div>
 
-  <script>
-    // PWA：注册 Service Worker
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', async () => {
-        try {
-          await navigator.serviceWorker.register('/static/sw.js');
-        } catch (e) {}
-      });
-    }
+  <div class="container">
+    <h2>统计</h2>
 
-    // 体验优化：如果用户没填日期，默认给最近 30 天（不强制，避免“空统计”）
-    (function defaultRange(){
-      const from = document.getElementById('from');
-      const to = document.getElementById('to');
-      if (!from || !to) return;
-      if (from.value || to.value) return;
+    <form method="get" action="/stats" class="card">
+      <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:end;">
+        <div>
+          <label>模式</label><br/>
+          <select name="mode" onchange="this.form.submit()">
+            <option value="month" {% if mode=='month' %}selected{% endif %}>按月</option>
+            <option value="week" {% if mode=='week' %}selected{% endif %}>按周</option>
+          </select>
+        </div>
 
-      const d = new Date();
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth()+1).padStart(2,'0');
-      const dd = String(d.getDate()).padStart(2,'0');
-      to.value = `${yyyy}-${mm}-${dd}`;
+        <div {% if mode!='month' %}style="display:none"{% endif %}>
+          <label>选择月份</label><br/>
+          <input type="month" name="month" value="{{ month_value }}" />
+        </div>
 
-      const d2 = new Date(d.getTime() - 29*24*3600*1000);
-      const yyyy2 = d2.getFullYear();
-      const mm2 = String(d2.getMonth()+1).padStart(2,'0');
-      const dd2 = String(d2.getDate()).padStart(2,'0');
-      from.value = `${yyyy2}-${mm2}-${dd2}`;
-    })();
-  </script>
+        <div {% if mode!='week' %}style="display:none"{% endif %}>
+          <label>选择周</label><br/>
+          <input type="week" name="week" value="{{ week_value }}" />
+        </div>
+
+        <button type="submit">查看</button>
+      </div>
+    </form>
+
+    <div class="card">
+      <div style="font-weight:600;">{{ label }}</div>
+      <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:8px;">
+        <div>支出：¥ {{ '%.2f'|format(summary.expense) }}</div>
+        <div>收入：¥ {{ '%.2f'|format(summary.income) }}</div>
+        <div>结余：¥ {{ '%.2f'|format(summary.balance) }}</div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h3>支出品类</h3>
+        {% if expense_categories|length == 0 %}
+          <div class="muted">暂无数据</div>
+        {% else %}
+          <ul>
+          {% for x in expense_categories %}
+            <li style="display:flex;justify-content:space-between;">
+              <span>{{ x.category }}</span>
+              <span>¥ {{ '%.2f'|format(x.total) }}</span>
+            </li>
+          {% endfor %}
+          </ul>
+        {% endif %}
+      </div>
+
+      <div class="card">
+        <h3>收入品类</h3>
+        {% if income_categories|length == 0 %}
+          <div class="muted">暂无数据</div>
+        {% else %}
+          <ul>
+          {% for x in income_categories %}
+            <li style="display:flex;justify-content:space-between;">
+              <span>{{ x.category }}</span>
+              <span>¥ {{ '%.2f'|format(x.total) }}</span>
+            </li>
+          {% endfor %}
+          </ul>
+        {% endif %}
+      </div>
+    </div>
+  </div>
 </body>
 </html>
-
-
