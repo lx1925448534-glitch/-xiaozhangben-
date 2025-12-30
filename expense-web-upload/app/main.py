@@ -7,6 +7,9 @@ from app.db import Base, engine, SessionLocal
 from app import crud
 
 app = FastAPI()
+from fastapi.staticfiles import StaticFiles
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
 templates = Jinja2Templates(directory="app/templates")
 
 Base.metadata.create_all(bind=engine)
@@ -221,3 +224,4 @@ def stats(
             "by_category": by_category,
         },
     )
+
