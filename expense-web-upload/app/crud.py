@@ -130,3 +130,21 @@ def category_breakdown(db: Session, user_id: int, start: date, end: date, type_:
         .all()
     )
     return [{"category": (c or "未分类"), "total": float(t or 0.0)} for c, t in rows]
+    
+from sqlalchemy.orm import Session
+from typing import Optional, List
+from app.models import User
+
+def list_users(db: Session, limit: int = 200) -> List[User]:
+    return db.query(User).order_by(User.id.desc()).limit(limit).all()
+
+def get_user_by_username(db: Session, username: str) -> Optional[User]:
+    return db.query(User).filter(User.username == username).first()
+
+def update_user_password(db: Session, user_id: int, password_hash: str) -> None:
+    u = db.query(User).filter(User.id == user_id).first()
+    if not u:
+        return
+    u.password_hash = password_hash
+    db.commit()
+
