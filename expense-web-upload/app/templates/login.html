@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>登录</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="container" style="max-width:420px;margin-top:40px;">
+    <h2>登录</h2>
+    {% if error %}
+      <div class="card" style="border:1px solid #f3b4b4;">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/login" class="card">
+      <label>用户名</label>
+      <input name="username" required />
+
+      <label style="margin-top:10px;">密码</label>
+      <input name="password" type="password" required />
+
+      <button type="submit" style="margin-top:14px;width:100%;">登录</button>
+    </form>
+
+    <div class="muted" style="margin-top:12px;">
+      没有账号？<a href="/register">去注册</a>
+    </div>
+  </div>
+</body>
+</html>
