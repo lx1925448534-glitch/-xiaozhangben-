@@ -304,3 +304,4 @@ def stats(
             "income_categories": inc_cat,
         },
     )
+
