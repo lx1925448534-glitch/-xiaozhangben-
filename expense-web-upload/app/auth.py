@@ -2,7 +2,8 @@ from passlib.context import CryptContext
 from fastapi import Request
 from typing import Optional
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# ✅ 改成 pbkdf2_sha256：纯 Python，不依赖 bcrypt 编译库，Render 最稳
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 SESSION_COOKIE = "xz_session_user_id"
 
