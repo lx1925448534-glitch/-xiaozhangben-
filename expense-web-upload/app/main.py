@@ -1,23 +1,26 @@
+from datetime import datetime, date
+from typing import Optional, Dict, Any, List
+
 from fastapi import FastAPI, Request, Depends, Form
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from starlette.templating import Jinja2Templates
+
 from sqlalchemy.orm import Session
-from datetime import datetime
 
 from app.db import SessionLocal, engine
 from app import models, crud
 
-models.Base.metadata.create_all(bind=engine)
 
+# ---- App ----
 app = FastAPI()
 
-# static & templates
+# Static + Templates
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
 
-# DB dependency
+# ---- DB dependency ----
 def get_db():
     db = SessionLocal()
     try:
@@ -26,54 +29,86 @@ def get_db():
         db.close()
 
 
-# 首页：展示最近记录 + 月统计（保持你原来的逻辑）
-@app.get("/")
+# ---- Helpers ----
+def parse_date(date_str: str) -> date:
+    # Accept: YYYY/MM/DD or YYYY-MM-DD
+    s = (date_str or "").strip()
+    if "/" in s:
+        return datetime.strptime(s, "%Y/%m/%d").date()
+    return datetime.strptime(s, "%Y-%m-%d").date()
+
+
+def current_month_str() -> str:
+    today = date.today()
+    return f"{today.year:04d}-{today.month:02d}"
+
+
+# ---- Routes ----
+@app.get("/", response_class=HTMLResponse)
 def home(request: Request, db: Session = Depends(get_db)):
-    records = crud.list_recent(db)
-    summary = crud.month_summary(db)
+    # 兼容：crud.py 里可能叫 list_recent
+    # 我们在 crud.py 里会补一个 list_records 的别名
+    records = crud.list_records(db)
+
+    # 首页顶部统计（可选，按你原来逻辑）
+    totals = crud.month_totals(db, month=current_month_str())
+
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
             "records": records,
-            "summary": summary,
+            "totals": totals,
+            "default_date": date.today().strftime("%Y/%m/%d"),
         },
     )
 
 
-# 添加记录（关键修复点）
 @app.post("/add")
 def add_record(
-    r_type: str = Form(...),
+    r_type: str = Form(...),          # income / expense
     amount: float = Form(...),
     category: str = Form(...),
-    date_str: str = Form(...),
+    date_str: str = Form(...),        # "2025/12/30" or "2025-12-30"
     note: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    d = parse_date(date_str)
+
     crud.create_record(
         db=db,
-        r_type=r_type,
-        amount=amount,
-        category=category,
-        date=date,
-        note=note,
+        r_type=r_type.strip(),
+        amount=float(amount),
+        category=category.strip(),
+        date=d,
+        note=(note or "").strip(),
     )
-    return RedirectResponse("/", status_code=303)
+
+    # 保存完回首页
+    return RedirectResponse(url="/", status_code=303)
 
 
-# 统计页（月统计，给后面饼图用）
-@app.get("/stats")
-def stats(request: Request, db: Session = Depends(get_db)):
-    summary = crud.month_summary(db)
-    by_category = crud.category_summary(db)
+@app.get("/stats", response_class=HTMLResponse)
+def stats(
+    request: Request,
+    month: Optional[str] = None,  # "YYYY-MM"
+    db: Session = Depends(get_db),
+):
+    month = (month or "").strip() or current_month_str()
+
+    totals = crud.month_totals(db, month=month)
+    breakdown_expense = crud.month_category_breakdown(db, month=month, r_type="expense")
+    breakdown_income = crud.month_category_breakdown(db, month=month, r_type="income")
+
+    # 你如果统计页是“原来的月统计模式”，就用 month 参数即可切换月份
     return templates.TemplateResponse(
         "stats.html",
         {
             "request": request,
-            "summary": summary,
-            "by_category": by_category,
+            "month": month,
+            "totals": totals,
+            "breakdown_expense": breakdown_expense,
+            "breakdown_income": breakdown_income,
         },
     )
 
