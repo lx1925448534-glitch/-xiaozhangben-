@@ -9,6 +9,7 @@
 <body>
   <div class="container" style="max-width:420px;margin-top:40px;">
     <h2>注册</h2>
+
     {% if error %}
       <div class="card" style="border:1px solid #f3b4b4;">{{ error }}</div>
     {% endif %}
@@ -17,7 +18,7 @@
       <label>用户名</label>
       <input name="username" required />
 
-      <label style="margin-top:10px;">密码</label>
+      <label style="margin-top:10px;">密码（至少6位）</label>
       <input name="password" type="password" required />
 
       <button type="submit" style="margin-top:14px;width:100%;">创建账号</button>
