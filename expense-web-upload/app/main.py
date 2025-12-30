@@ -14,6 +14,7 @@ from app.auth import hash_password, verify_password, get_current_user_id, SESSIO
 
 app = FastAPI()
 
+# Create tables (safe; for demo use. For production use migrations.)
 Base.metadata.create_all(bind=engine)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -23,14 +24,6 @@ templates = Jinja2Templates(directory="app/templates")
 def _parse_date_any(s: str) -> date:
     ss = (s or "").strip().replace("/", "-")
     return datetime.strptime(ss, "%Y-%m-%d").date()
-
-
-def _require_login(request: Request) -> int:
-    uid = get_current_user_id(request)
-    if not uid:
-        # not logged in
-        raise RuntimeError("NOT_LOGGED_IN")
-    return uid
 
 
 @app.get("/health")
@@ -46,16 +39,17 @@ def login_page(request: Request):
 
 @app.post("/login")
 def login_post(
+    request: Request,
     username: str = Form(...),
     password: str = Form(...),
 ):
     db = SessionLocal()
     try:
         u = crud.get_user_by_username(db, username.strip())
-        if not u or not verify_password(password, u.password_hash):
+        if (not u) or (not verify_password(password, u.password_hash)):
             return templates.TemplateResponse(
                 "login.html",
-                {"request": Request, "error": "用户名或密码错误"},
+                {"request": request, "error": "用户名或密码错误"},
                 status_code=401,
             )
     finally:
@@ -73,16 +67,30 @@ def register_page(request: Request):
 
 @app.post("/register")
 def register_post(
+    request: Request,
     username: str = Form(...),
     password: str = Form(...),
 ):
+    username = username.strip()
+    if not username:
+        return templates.TemplateResponse(
+            "register.html",
+            {"request": request, "error": "用户名不能为空"},
+            status_code=400,
+        )
+    if len(password) < 6:
+        return templates.TemplateResponse(
+            "register.html",
+            {"request": request, "error": "密码至少 6 位"},
+            status_code=400,
+        )
+
     db = SessionLocal()
     try:
-        username = username.strip()
         if crud.get_user_by_username(db, username):
             return templates.TemplateResponse(
                 "register.html",
-                {"request": Request, "error": "用户名已存在"},
+                {"request": request, "error": "用户名已存在"},
                 status_code=400,
             )
         u = crud.create_user(db, username=username, password_hash=hash_password(password))
@@ -112,10 +120,10 @@ def home(request: Request):
     try:
         records = crud.list_records(db, user_id=uid, limit=200)
 
-        # 本月统计（用 crud.month_range）
-        month = date.today().strftime("%Y-%m")
-        start, end = crud.month_range(month)
-        summary = crud.range_summary(db, uid, start, min(end, date.today()))
+        # 本月统计
+        m = date.today().strftime("%Y-%m")
+        start, end = crud.month_range(m)
+        summary = crud.range_summary(db, uid, start, end)
     finally:
         db.close()
 
@@ -131,9 +139,16 @@ def home(request: Request):
     )
 
 
+# 防止 GET /add 被打开时报错（表单只走 POST）
+@app.get("/add")
+def add_get_redirect():
+    return RedirectResponse(url="/", status_code=302)
+
+
 @app.post("/add")
 def add_post(
     request: Request,
+    # ✅ 必须对齐 index.html：name="type/amount/category/date/note"
     type: str = Form(...),
     amount: float = Form(...),
     category: str = Form(...),
@@ -178,6 +193,7 @@ def delete_post(request: Request, record_id: int):
         crud.delete_record(db, user_id=uid, record_id=record_id)
     finally:
         db.close()
+
     return RedirectResponse(url="/", status_code=303)
 
 
@@ -196,16 +212,17 @@ def stats(
     today = date.today()
 
     if mode == "week":
-        week_value = week or today.isocalendar()
-        if isinstance(week_value, tuple):
-            # shouldn't happen from querystring; just for safety
-            week_value = f"{today.year}-W{today.isocalendar().week:02d}"
-        start, end = crud.week_range(week or f"{today.year}-W{today.isocalendar().week:02d}")
+        wk = week or f"{today.year}-W{today.isocalendar().week:02d}"
+        start, end = crud.week_range(wk)
         label = f"周：{start.strftime('%Y-%m-%d')} ~ {end.strftime('%Y-%m-%d')}"
+        week_value = wk
+        month_value = month or today.strftime("%Y-%m")
     else:
         m = month or today.strftime("%Y-%m")
         start, end = crud.month_range(m)
         label = f"月：{m}"
+        month_value = m
+        week_value = week or f"{today.year}-W{today.isocalendar().week:02d}"
 
     db = SessionLocal()
     try:
@@ -221,8 +238,8 @@ def stats(
             "request": request,
             "mode": mode,
             "label": label,
-            "month_value": month or today.strftime("%Y-%m"),
-            "week_value": week or f"{today.year}-W{today.isocalendar().week:02d}",
+            "month_value": month_value,
+            "week_value": week_value,
             "summary": summary,
             "expense_categories": exp_cat,
             "income_categories": inc_cat,
